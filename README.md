@@ -87,3 +87,4 @@ BPE (Byte Pairing Encoding) helps by trying to make the most "nice" pairs, inste
 
  Generative AI Helps
  The explanation about the BPE
+ Makefile creation and exclude option for flake8, mypy

@@ -9,3 +9,19 @@ dependencies = [
     "torch>=2.10.0",
     "transformers>=5.0.0",
 ]
+[tool.mypy]
+warn_return_any = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+exclude = ["llm_sdk/"]
+
+[[tool.mypy.overrides]]
+module = "llm_sdk.*"
+ignore_errors = true
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+]

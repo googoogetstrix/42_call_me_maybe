@@ -21,6 +21,7 @@ debug:
 clean:
 	rm -rf __pycache__
 	rm -rf src/__pycache__
+	rm -rf .venv
 	rm -rf .mypy_cache
 	rm -rf .pytest_cache
 	find . -type d -name "__pycache__" -exec rm -rf {} +
@@ -28,10 +29,10 @@ clean:
 
 # Execute standard linting
 lint:
-	flake8 .
-	mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
+	flake8 --exclude .venv,./llm_sdk/ .
+	uv run mypy . --exclude '(.venv|llm_sdk)/' --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
 
 # Optional: Execute strict linting
 lint-strict:
-	flake8 .
-	mypy . --strict
+	flake8 --exclude .venv,./llm_sdk/ .
+	uv run mypy . --exclude '(.venv|llm_sdk)/' --strict

@@ -1,6 +1,6 @@
 from llm_sdk import Small_LLM_Model
 from pydantic import BaseModel, PrivateAttr
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import torch
 import json
 import numpy as np
@@ -10,20 +10,38 @@ class CallMeMaybe_LLM_Model(BaseModel):
     """Wrapper class of Small_LLM_Model, make use of the existing LLM class
     and implement own decode/encode method"""
 
-    _llm: Small_LLM_Model = PrivateAttr(None)
-    _vocab: str = PrivateAttr(None)
+    _llm: Optional[Small_LLM_Model] = PrivateAttr(None)
+    _vocab: Optional[str] = PrivateAttr(None)
     _max_tokens_limit: int = 256
-    _token_to_id: Dict[str, int] = PrivateAttr([])
-    _id_to_token: Dict[int, str] = PrivateAttr([])
+    _token_to_id: Dict[str, int] = PrivateAttr({})
+    _id_to_token: Dict[int, str] = PrivateAttr({})
     _function_definitions: Optional[str] = None
     EOT_TOKEN_ID: int = 16141
     DEBUG_OUTPUT: bool = True
 
-    def argmax(logits):
+    @staticmethod
+    def argmax(logits: list[float]) -> int:
+        """
+        Helper function for np.argmax()
+
+        Args:
+            logits (list[float]): list of floats you want to find the argmax
+
+        Returns:
+            int: index of the maximum value from the list
+        """
         return int(np.argmax(logits))
 
-    def model_post_init(self, __context):
-        """pydantic way to initialize some private members"""
+    def model_post_init(self, __context: Any) -> None:
+        """
+        pydantic way to initialize some private members
+
+        Args:
+            __context (Any): passed by default
+
+        Returns:
+            None
+        """
         self._llm = Small_LLM_Model()
         self._vocab = self._llm.get_path_to_vocabulary_json()
 
@@ -82,7 +100,8 @@ class CallMeMaybe_LLM_Model(BaseModel):
             # 4. If we found a valid merge, do it and restart the check
             if best_pair_idx != -1:
                 new_tokens = word_tokens[:best_pair_idx]
-                new_tokens.append(merged_token_id)
+                if merged_token_id is not None:
+                    new_tokens.append(merged_token_id)
                 new_tokens.extend(word_tokens[best_pair_idx + 2:])
                 word_tokens = new_tokens
             else:
@@ -171,8 +190,20 @@ Answer: {{ "fn_name" : \""""
             self,
             src: list[str],
             prompt: str,
-            reset_as_well=True
+            reset_as_well: bool = True
             ) -> object:
+        """
+        Adjust the obejct so the output JSON is in "prompt", "fn_name", "args"
+        format
+
+        Args:
+            src (list[str]): List of the (str) token
+            prompt (str): prompt to be added to the returned object
+            reset_as_well (bool): cleaned up the src list once done
+
+        Returns:
+            object with pre-defined formatted
+        """
         obj = json.loads(''.join(src))
         return_obj = {}
         return_obj['prompt'] = prompt
@@ -186,13 +217,26 @@ Answer: {{ "fn_name" : \""""
             src = []
         return return_obj
 
-    def prompt_selection(self, custom_prompt: str) -> str:
+    def prompt_selection(self, custom_prompt: str) -> object:
+        """
+        Select the best suit functions , arguments from the given prompt,
+        returns as a proper object
+
+        Args:
+            custom_prompt (str): prompt to find the function
+
+        Returns:
+            object: JSON comapatible Dict which will contains prompt, fn_name
+                  and args
+        """
         system_prompt = self.get_custom_prompt(custom_prompt)
         torch_tensors = self.encode(system_prompt)
 
         ids = torch_tensors[0].tolist()
 
         json_result = ["{", '"fn_name"', ": \""]
+        if self._llm is None:
+            raise RuntimeError("Model was not properly initialized")
 
         for i in range(0, self._max_tokens_limit):
             out_tokens = self._llm.get_logits_from_input_ids(ids)
