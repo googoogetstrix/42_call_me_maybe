@@ -1,7 +1,8 @@
 # Variables
 PYTHON := python3
 UV := uv
-MAIN_SCRIPT := src
+MODULE := src
+MAIN_SCRIPT := src/__main__.py
 
 .PHONY: install run debug clean lint lint-strict
 
@@ -11,16 +12,21 @@ install:
 
 # Execute the main script
 run:
-	$(UV) run $(PYTHON) -m $(MAIN_SCRIPT)
+	$(UV) run $(PYTHON) -m $(MODULE)
+
+run-timed:
+	@echo "Execution started at: $$(date)"
+	@time $(MAKE) run
+	@echo "Execution finished at: $$(date)"
 
 # Run the main script in debug mode using pdb
 debug:
-	$(PYTHON) -m pdb $(MAIN_SCRIPT)
+	$(UV) run $(PYTHON) -m pdb $(MAIN_SCRIPT)
 
 # Remove temporary files and caches
 clean:
 	rm -rf __pycache__
-	rm -rf src/__pycache__
+	rm -rf $(MODULE)/__pycache__
 	rm -rf .venv
 	rm -rf .mypy_cache
 	rm -rf .pytest_cache

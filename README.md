@@ -1,3 +1,9 @@
+TODOs
+
+- Prompt Caching, (only pre part! AKA KV Cache)
+- check about the output folders
+
+
 This project has been created as part of the 42 curriculum by bworrawa
 
 # Description
