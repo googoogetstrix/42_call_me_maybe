@@ -2,7 +2,7 @@ TODOs
 
 - Prompt Caching, (only pre part! AKA KV Cache)
 - check about the output folders
-
+- quick returns if the chunk recently hasn't contains }, simply return False *** DONE ***s
 
 This project has been created as part of the 42 curriculum by bworrawa
 

@@ -16,6 +16,9 @@ class CallMeMaybe_LLM_Model(BaseModel):
     _token_to_id: Dict[str, int] = PrivateAttr({})
     _id_to_token: Dict[int, str] = PrivateAttr({})
     _function_definitions: Optional[str] = None
+    _system_prompt: Optional[Dict[str,str]] = None
+    _system_prompt_tokens: Optional[Dict[str, list[int]]] = None
+    _system_prompt_tensor: Optional[torch.Tensor] = None
     EOT_TOKEN_ID: int = 16141
     DEBUG_OUTPUT: bool = True
 
@@ -57,6 +60,30 @@ class CallMeMaybe_LLM_Model(BaseModel):
             processed_token = token_str.replace('Ġ', ' ').replace(' ', ' ')
             self._token_to_id[processed_token] = token_id
             self._id_to_token[token_id] = processed_token
+
+        sp = f"""
+You are helpful JSON generator, you will response only a valid JSON,
+no explanation.
+You always return JSON in this format {{ "fn_name": "fn_xxx",
+"args": {{"xxx": "yyy"}} }}.
+From provided JSON: {self._function_definitions}, choose the best
+function and arguments to solve this question.
+Question: {prompt}\n
+Answer: {{ "fn_name" : \""""
+
+        self._system_prompt = {}
+        self._system_prompt['PRE_PROMPT'] = sp.strip()
+        sp = f"""\nAnswer: {{ "fn_name" : \""""                
+        self._system_prompt['POST_PROMPT'] = sp.strip()
+
+        self._system_prompt_tokens = {}
+        self._system_prompt_tokens['PRE_PROMPT'] = (
+            self.encode(self._system_prompt['PRE_PROMPT'])
+        )
+        self._system_prompt_tokens['POST_PROMPT'] = (
+            self.encode(self._system_prompt['PRE_PROMPT'])
+        )
+
 
     def encode(self, text: str) -> torch.Tensor:
         """
@@ -140,7 +167,7 @@ class CallMeMaybe_LLM_Model(BaseModel):
 
         self._function_definitions = json_str
 
-    def get_custom_prompt(self, prompt: str) -> str:
+    def get_custom_prompt_str(self, prompt: str) -> str:
         """
         Add the custom prompt into CMM System prompt
 
@@ -171,6 +198,35 @@ Question: {prompt}\n"
 Answer: {{ "fn_name" : \""""
 
         return sp.strip()
+    
+    def get_system_prompt_tensor(self, custom_prompt:str) -> torch.Tensor:
+        """
+        Get the Tensor from 
+        
+        :param self: Description
+        :param custom_prompt: Description
+        :type custom_prompt: str
+        :return: Description
+        :rtype: Any
+        """
+        # if previously set, simply return the whol base prompt
+        if (
+            self._system_prompt['prompt'] == custom_prompt and 
+            self._system_prompt_tokens['prompt'] is not None and
+            self._system_prompt_tensor is not None
+        ):
+            return self._system_prompt_tensor
+        
+        self._system_prompt['prompt'] = custom_prompt
+        self._system_prompt_tokens['prompt'] = self.encode(self._system_prompt['prompt'])
+        self._system_prompt_tensor = torch.Tensor(
+            self._system_prompt_tokens['PRE_PROMPT'] +
+            self._system_prompt_tokens['prompt'] +
+            self._system_prompt_tokens['POST_PROMPT'] 
+        )
+        return self._system_prompt_tensor
+        
+        
 
     def _push_json_chunk(self, src: list[str], chunk: str) -> bool:
         chunk = chunk.replace('Ċ', '\n')
@@ -180,6 +236,9 @@ Answer: {{ "fn_name" : \""""
             print(temp)
 
         try:
+            # add quick JSON ending check, so doesn't have to fully parse
+            if "}" not in chunk:
+                return False
             # extra check to remove special token
             json.loads(temp)
         except json.JSONDecodeError:
@@ -229,8 +288,10 @@ Answer: {{ "fn_name" : \""""
             object: JSON comapatible Dict which will contains prompt, fn_name
                   and args
         """
-        system_prompt = self.get_custom_prompt(custom_prompt)
+        system_prompt = self.get_custom_prompt_str(custom_prompt)
         torch_tensors = self.encode(system_prompt)
+        # TODO, should replace above 2 lines
+        # torch_tensors = self.get_system_prompt_tensor(custom_prompt)
 
         ids = torch_tensors[0].tolist()
 
