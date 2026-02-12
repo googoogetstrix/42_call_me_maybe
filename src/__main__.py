@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 from datetime import datetime
-
+import time
 
 def main() -> None:
     """
@@ -12,6 +12,8 @@ def main() -> None:
     """
 
     now = datetime.now()
+    start = time.perf_counter()
+
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
     print(f"{timestamp} INFO: Starts Execution",file=sys.stderr)
 
@@ -37,6 +39,9 @@ def main() -> None:
 
         model = CallMeMaybe_LLM_Model()
 
+        elapsed = time.perf_counter() - start
+        print(f"{elapsed:.3f}s after init")
+
         with open(definition_path, "r") as f:
             f_def = f.read()
         with open(input_path, "r") as f:
@@ -44,21 +49,24 @@ def main() -> None:
 
         model.set_functions_definition(f_def)
         items = []
-        for k in prompts:
-            out = model.prompt_selection(k['prompt'])
-            items.append(out)
-            print(out, file=sys.stderr)
         with open(output_path, "w") as f:
-            # print(items, file=sys.stderr)
+            for k in prompts:
+
+                start = time.perf_counter()
+                out = model.prompt_selection(k['prompt'])
+                elapsed = time.perf_counter() - start
+                
+                items.append(out)
+                print(out, file=sys.stderr)
+                print(f"Prompt {k}: {elapsed:.3f}s", file=sys.stderrs)
             json.dump(items, f, indent=4, ensure_ascii=False)
+        now = datetime.now()
+        timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+        print(f"{timestamp} INFO: Ends Execution", file=sys.stderr)
 
     except Exception as e:
         print("Error:", e)
         raise e
-    finally:
-        now = datetime.now()
-        timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
-        print(f"{timestamp} INFO: Ends Execution", file=sys.stderr)
 
 
 if __name__ == "__main__":
