@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime
 import time
 
+
 def main() -> None:
     """
     Run the Call Me Maybe project with the default options

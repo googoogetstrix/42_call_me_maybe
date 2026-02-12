@@ -23,6 +23,9 @@ run-timed:
 debug:
 	$(UV) run $(PYTHON) -m pdb $(MAIN_SCRIPT)
 
+test:
+	$(UV) run pytest
+
 # Remove temporary files and caches
 clean:
 	rm -rf __pycache__

@@ -27,5 +27,15 @@ import pytest
 #     assert target.exists()
 #     assert target.is_dir()
 
-def test_something():
-    assert 1 == 1.0
+
+def test_input_file_structure(tmp_path):
+    default_func_def_name = "functions_definition.json"
+    default_in_dir = tmp_path / "data" / "input" 
+    
+
+    target = default_in_dir 
+    print(target)
+    assert target.exists()
+
+
+# def test_irectories_ok():

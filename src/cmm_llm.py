@@ -1,5 +1,5 @@
 from llm_sdk import Small_LLM_Model
-from pydantic import BaseModel, PrivateAttr, model_validator
+from pydantic import BaseModel, PrivateAttr
 from typing import Dict, Optional, Any
 import torch
 import json
@@ -8,7 +8,6 @@ import sys
 import logging
 
 logger = logging.getLogger(__name__)
-
 
 
 class CallMeMaybe_LLM_Model(BaseModel):
@@ -24,10 +23,8 @@ class CallMeMaybe_LLM_Model(BaseModel):
     _system_prompt: Optional[Dict[str, str]] = None
     _system_prompt_tokens: Dict[str, list[int]] = {}
     _system_prompt_tensor: Optional[torch.Tensor] = None
-    EOT_TOKEN_ID: int = 16141
+    EOT_TOKEN_ID: int = 151643
     DEBUG_OUTPUT: bool = False
-    USE_ORIGINAL: bool = False
-
 
     @staticmethod
     def argmax(logits: list[float]) -> int:
@@ -69,7 +66,6 @@ class CallMeMaybe_LLM_Model(BaseModel):
             self._token_to_id[processed_token] = token_id
             self._id_to_token[token_id] = processed_token
 
-
     def encode(self, text: str) -> torch.Tensor:
         """
         Encode the input text using internal vocab into Tensor.
@@ -83,8 +79,6 @@ class CallMeMaybe_LLM_Model(BaseModel):
             torch.Tensor: Tensor of the mappings.
 
         """
-        if self.USE_ORIGINAL:
-            return self._llm._encode(text)
         # convert the text into list of single character token
         word_tokens = [self._token_to_id.get(char, 0) for char in text]
 
@@ -127,8 +121,6 @@ class CallMeMaybe_LLM_Model(BaseModel):
         """
         decode list of integer into text using LLM vocab
         """
-        if self.USE_ORIGINAL:
-            return self._llm._decode(ids)
         return "".join(self._id_to_token[i] for i in ids)
 
     def set_functions_definition(self, json_str: str) -> None:
@@ -144,7 +136,7 @@ class CallMeMaybe_LLM_Model(BaseModel):
             KeyError: JSON object does not have a "fn_name", "args_names"
             attribute
         """
-        
+
         try:
             fds = json.loads(json_str)
         except json.JSONDecodeError:
@@ -180,83 +172,6 @@ Question: """
             self.encode(self._system_prompt['POST_PROMPT'])
         )
 
-#     def get_custom_prompt_str(self, prompt: str) -> str:
-#         """
-#         Add the custom prompt into CMM System prompt
-
-#         Args:
-#             prompt(str): Prompt to find the best suit functions
-
-#         Returns:
-#             str: full prompts which will be used in the Autoregression process
-#         Raises:
-#             ValueError: Invalid prompt str or self._functions_definition
-#         """
-
-#         if not isinstance(prompt, str):
-#             raise ValueError("invalid prompt, str expected")
-#         if prompt.strip() == '':
-#             raise ValueError("invalid prompt, non-empty str expected")
-
-#         if self._function_definitions is None:
-#             raise ValueError("functions definition was not yet set")
-#         sp = f"""
-# You are helpful JSON generator, you will response only a valid JSON,
-# no explanation.
-# You always return JSON in this format {{ "fn_name": "fn_xxx",
-# "args": {{"xxx": "yyy"}} }}.
-# From provided JSON: {self._function_definitions}, choose the best
-# function and arguments to solve this question.
-# Question: {prompt}\n"
-# Answer: {{ "fn_name" : \""""
-
-#         return sp.strip()
-
-    # def get_system_prompt_tensor(self, custom_prompt: str) -> torch.Tensor:
-    #     """
-    #     Get the Tensor from 3 sections, the Pre / prompt / Post
-
-    #     Args:
-    #         custom_prompt (str): prompt for looking up functions
-    #     Returns:
-    #         torch.Tensor: tensor cretaed from system + custom prompt
-    #     """
-    #     # if previously set, simply return the whol base prompt
-    #     try:
-    #         if (
-    #             self._system_prompt['prompt'] == custom_prompt and 
-    #             self._system_prompt_tokens['prompt'] is not None and
-    #             self._system_prompt_tensor is not None
-    #         ):
-    #             print(f"cached tensor: {custom_prompt}", file=sys.stderr)
-    #             return self._system_prompt_tensor
-    #     except KeyError:
-    #         pass
-
-    #     self._system_prompt['prompt'] = custom_prompt
-    #     self._system_prompt_tokens['prompt'] = (
-    #         self.encode(self._system_prompt['prompt'])
-    #     )
-    #     # print(f"PRE: {len(self._system_prompt_tokens['PRE_PROMPT'])}, PROMPT: {len(self._system_prompt_tokens['prompt'])}, POST: {len(self._system_prompt_tokens['POST_PROMPT'])}")
-    #     # print(f"Types: {type(self._system_prompt_tokens['PRE_PROMPT'][0])}, {type(self._system_prompt_tokens['prompt'][0])}, {type(self._system_prompt_tokens['POST_PROMPT'][0])}")
-
-    #     self._system_prompt_tensor = torch.cat(
-    #         [
-    #             self._system_prompt_tokens['PRE_PROMPT'],
-    #             self._system_prompt_tokens['prompt'],
-    #             self._system_prompt_tokens['POST_PROMPT']
-    #         ],
-    #         dim=1
-    #     )
-    #     # combined = (
-    #     #     self._system_prompt_tokens['PRE_PROMPT'] +
-    #     #     self._system_prompt_tokens['prompt'] +
-    #     #     self._system_prompt_tokens['POST_PROMPT']
-    #     # )
-    #     # self._system_prompt_tensor = torch.Tensor(combined)
-        
-    #     return self._system_prompt_tensor
-
     def get_system_prompt_ids(self, custom_prompt: str) -> list[int]:
         """
         Get the Tensor from 3 sections, the Pre / prompt / Post
@@ -270,52 +185,21 @@ Question: """
         # if previously set, simply return the whole base prompt
         user_prompt = self.encode(custom_prompt)
 
-        if self.USE_ORIGINAL:
-            return (
-                self._system_prompt_tokens['PRE_PROMPT'].tolist()[0] +
-                user_prompt.tolist()[0] +
-                self._system_prompt_tokens['POST_PROMPT'].tolist()[0] 
-            )
         return (
                     self._system_prompt_tokens['PRE_PROMPT'] +
                     user_prompt +
                     self._system_prompt_tokens['POST_PROMPT'] 
                 )
 
-        # try:
-        #     if (
-        #         self._system_prompt['prompt'] == custom_prompt and 
-        #         self._system_prompt_tokens['prompt'] is not None and
-        #         self._system_prompt_tensor is not None
-        #     ):
-        #         print(f"cached tensor: {custom_prompt}", file=sys.stderr)
-        #         return self._system_prompt_tensor
-        # except KeyError:
-        #     pass
-
-        # self._system_prompt['prompt'] = custom_prompt
-        # self._system_prompt_tokens['prompt'] = (
-        #     self.encode(self._system_prompt['prompt'])
-        # )
-
-        # return (
-        #     self._system_prompt_tokens['PRE_PROMPT'] +
-        #     self._system_prompt_tokens['prompt'] +
-        #     self._system_prompt_tokens['POST_PROMPT']
-        # )
-
     def _push_json_chunk(self, src: list[str], chunk: str) -> bool:
         chunk = chunk.replace('Ċ', '\n')
         src.append(chunk)
         temp = ''.join(src)
-        # if self.DEBUG_OUTPUT:
-        #     logger.info("_push_json_chunk():", temp)
 
         try:
             # add quick JSON ending check, so doesn't have to fully parse
             if "}" not in chunk:
                 return False
-            # extra check to remove special token
             json.loads(temp)
         except json.JSONDecodeError:
             return False
@@ -357,26 +241,21 @@ Question: """
         return return_obj
 
     def prompt_selection(self, custom_prompt: str) -> object:
-        # 1. Get the base IDs (System + User + Post)
-        # Ensure this returns a FLAT LIST of ints, not a Tensor yet.
-        ids = self.get_system_prompt_ids(custom_prompt) 
         
-        # 2. Pre-fill the start of the JSON so the LLM doesn't have to "guess" it
+        
+        ids = self.get_system_prompt_ids(custom_prompt)
+
         prefill_text = '{"fn_name": "'
         ids.extend(self.encode(prefill_text))
-        
-        # Initialize your result accumulator with the prefilled text
+
         json_result = prefill_text
 
         for i in range(self._max_tokens_limit):
-            # This is the slow part (The Model Math)
+
             out_tokens = self._llm.get_logits_from_input_ids(ids)
             next_token_id = self.argmax(out_tokens)
 
-            # Update IDs so the model remembers this token for the next round
             ids.append(next_token_id)
-
-            # Decode only the NEW token
             new_text = self.decode([next_token_id])
             if self.DEBUG_OUTPUT:
                 print(f"{next_token_id:<10} {new_text:<15}",
