@@ -1,9 +1,14 @@
 from llm_sdk import Small_LLM_Model
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel, PrivateAttr, model_validator
 from typing import Dict, Optional, Any
 import torch
 import json
 import numpy as np
+import sys
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 
 class CallMeMaybe_LLM_Model(BaseModel):
@@ -16,11 +21,12 @@ class CallMeMaybe_LLM_Model(BaseModel):
     _token_to_id: Dict[str, int] = PrivateAttr({})
     _id_to_token: Dict[int, str] = PrivateAttr({})
     _function_definitions: Optional[str] = None
-    _system_prompt: Optional[Dict[str,str]] = None
+    _system_prompt: Optional[Dict[str, str]] = None
     _system_prompt_tokens: Optional[Dict[str, list[int]]] = None
     _system_prompt_tensor: Optional[torch.Tensor] = None
     EOT_TOKEN_ID: int = 16141
     DEBUG_OUTPUT: bool = True
+
 
     @staticmethod
     def argmax(logits: list[float]) -> int:
@@ -45,6 +51,7 @@ class CallMeMaybe_LLM_Model(BaseModel):
         Returns:
             None
         """
+
         self._llm = Small_LLM_Model()
         self._vocab = self._llm.get_path_to_vocabulary_json()
 
@@ -60,29 +67,6 @@ class CallMeMaybe_LLM_Model(BaseModel):
             processed_token = token_str.replace('Ġ', ' ').replace(' ', ' ')
             self._token_to_id[processed_token] = token_id
             self._id_to_token[token_id] = processed_token
-
-        sp = f"""
-You are helpful JSON generator, you will response only a valid JSON,
-no explanation.
-You always return JSON in this format {{ "fn_name": "fn_xxx",
-"args": {{"xxx": "yyy"}} }}.
-From provided JSON: {self._function_definitions}, choose the best
-function and arguments to solve this question.
-Question: {prompt}\n
-Answer: {{ "fn_name" : \""""
-
-        self._system_prompt = {}
-        self._system_prompt['PRE_PROMPT'] = sp.strip()
-        sp = f"""\nAnswer: {{ "fn_name" : \""""                
-        self._system_prompt['POST_PROMPT'] = sp.strip()
-
-        self._system_prompt_tokens = {}
-        self._system_prompt_tokens['PRE_PROMPT'] = (
-            self.encode(self._system_prompt['PRE_PROMPT'])
-        )
-        self._system_prompt_tokens['POST_PROMPT'] = (
-            self.encode(self._system_prompt['PRE_PROMPT'])
-        )
 
 
     def encode(self, text: str) -> torch.Tensor:
@@ -134,10 +118,12 @@ Answer: {{ "fn_name" : \""""
             else:
                 # No more possible merges found in our vocab
                 break
-
         return torch.tensor([word_tokens])
 
     def decode(self, ids: list[int]) -> str:
+        """
+        decode list of integer into text using LLM vocab
+        """
         return "".join(self._id_to_token[i] for i in ids)
 
     def set_functions_definition(self, json_str: str) -> None:
@@ -153,6 +139,7 @@ Answer: {{ "fn_name" : \""""
             KeyError: JSON object does not have a "fn_name", "args_names"
             attribute
         """
+        
         try:
             fds = json.loads(json_str)
         except json.JSONDecodeError:
@@ -166,6 +153,28 @@ Answer: {{ "fn_name" : \""""
                 raise KeyError('object does not have "args_names" attribute')
 
         self._function_definitions = json_str
+
+        sp = f"""
+You are helpful JSON generator, you will response only a valid JSON,
+no explanation.
+You always return JSON in this format {{ "fn_name": "fn_xxx",
+"args": {{"xxx": "yyy"}} }}.
+From provided JSON: {self._function_definitions}, choose the best
+function and arguments to solve this question.
+Question: """
+
+        self._system_prompt = {}
+        self._system_prompt['PRE_PROMPT'] = sp.strip()
+        sp = "\nAnswer: { \"fn_name\" : \""
+        self._system_prompt['POST_PROMPT'] = sp.strip()
+
+        self._system_prompt_tokens = {}
+        self._system_prompt_tokens['PRE_PROMPT'] = (
+            self.encode(self._system_prompt['PRE_PROMPT'])
+        )
+        self._system_prompt_tokens['POST_PROMPT'] = (
+            self.encode(self._system_prompt['POST_PROMPT'])
+        )
 
     def get_custom_prompt_str(self, prompt: str) -> str:
         """
@@ -198,42 +207,97 @@ Question: {prompt}\n"
 Answer: {{ "fn_name" : \""""
 
         return sp.strip()
-    
-    def get_system_prompt_tensor(self, custom_prompt:str) -> torch.Tensor:
+
+    # def get_system_prompt_tensor(self, custom_prompt: str) -> torch.Tensor:
+    #     """
+    #     Get the Tensor from 3 sections, the Pre / prompt / Post
+
+    #     Args:
+    #         custom_prompt (str): prompt for looking up functions
+    #     Returns:
+    #         torch.Tensor: tensor cretaed from system + custom prompt
+    #     """
+    #     # if previously set, simply return the whol base prompt
+    #     try:
+    #         if (
+    #             self._system_prompt['prompt'] == custom_prompt and 
+    #             self._system_prompt_tokens['prompt'] is not None and
+    #             self._system_prompt_tensor is not None
+    #         ):
+    #             print(f"cached tensor: {custom_prompt}", file=sys.stderr)
+    #             return self._system_prompt_tensor
+    #     except KeyError:
+    #         pass
+
+    #     self._system_prompt['prompt'] = custom_prompt
+    #     self._system_prompt_tokens['prompt'] = (
+    #         self.encode(self._system_prompt['prompt'])
+    #     )
+    #     # print(f"PRE: {len(self._system_prompt_tokens['PRE_PROMPT'])}, PROMPT: {len(self._system_prompt_tokens['prompt'])}, POST: {len(self._system_prompt_tokens['POST_PROMPT'])}")
+    #     # print(f"Types: {type(self._system_prompt_tokens['PRE_PROMPT'][0])}, {type(self._system_prompt_tokens['prompt'][0])}, {type(self._system_prompt_tokens['POST_PROMPT'][0])}")
+
+    #     self._system_prompt_tensor = torch.cat(
+    #         [
+    #             self._system_prompt_tokens['PRE_PROMPT'],
+    #             self._system_prompt_tokens['prompt'],
+    #             self._system_prompt_tokens['POST_PROMPT']
+    #         ],
+    #         dim=1
+    #     )
+    #     # combined = (
+    #     #     self._system_prompt_tokens['PRE_PROMPT'] +
+    #     #     self._system_prompt_tokens['prompt'] +
+    #     #     self._system_prompt_tokens['POST_PROMPT']
+    #     # )
+    #     # self._system_prompt_tensor = torch.Tensor(combined)
+        
+    #     return self._system_prompt_tensor
+
+    def get_system_prompt_ids(self, custom_prompt: str) -> list[int]:
         """
-        Get the Tensor from 
-        
-        :param self: Description
-        :param custom_prompt: Description
-        :type custom_prompt: str
-        :return: Description
-        :rtype: Any
+        Get the Tensor from 3 sections, the Pre / prompt / Post
+
+        Args:
+            custom_prompt (str): prompt for looking up functions
+        Returns:
+            torch.Tensor: tensor cretaed from system + custom prompt
         """
-        # if previously set, simply return the whol base prompt
-        if (
-            self._system_prompt['prompt'] == custom_prompt and 
-            self._system_prompt_tokens['prompt'] is not None and
-            self._system_prompt_tensor is not None
-        ):
-            return self._system_prompt_tensor
-        
-        self._system_prompt['prompt'] = custom_prompt
-        self._system_prompt_tokens['prompt'] = self.encode(self._system_prompt['prompt'])
-        self._system_prompt_tensor = torch.Tensor(
-            self._system_prompt_tokens['PRE_PROMPT'] +
-            self._system_prompt_tokens['prompt'] +
-            self._system_prompt_tokens['POST_PROMPT'] 
-        )
-        return self._system_prompt_tensor
-        
-        
+        # if previously set, simply return the whole base prompt
+        user_prompt = self.encode(custom_prompt)
+        return (
+                    self._system_prompt_tokens['PRE_PROMPT'] +
+                    user_prompt +
+                    self._system_prompt_tokens['POST_PROMPT'] 
+                )
+
+        # try:
+        #     if (
+        #         self._system_prompt['prompt'] == custom_prompt and 
+        #         self._system_prompt_tokens['prompt'] is not None and
+        #         self._system_prompt_tensor is not None
+        #     ):
+        #         print(f"cached tensor: {custom_prompt}", file=sys.stderr)
+        #         return self._system_prompt_tensor
+        # except KeyError:
+        #     pass
+
+        # self._system_prompt['prompt'] = custom_prompt
+        # self._system_prompt_tokens['prompt'] = (
+        #     self.encode(self._system_prompt['prompt'])
+        # )
+
+        # return (
+        #     self._system_prompt_tokens['PRE_PROMPT'] +
+        #     self._system_prompt_tokens['prompt'] +
+        #     self._system_prompt_tokens['POST_PROMPT']
+        # )
 
     def _push_json_chunk(self, src: list[str], chunk: str) -> bool:
         chunk = chunk.replace('Ċ', '\n')
         src.append(chunk)
         temp = ''.join(src)
-        if self.DEBUG_OUTPUT:
-            print(temp)
+        # if self.DEBUG_OUTPUT:
+        #     logger.info("_push_json_chunk():", temp)
 
         try:
             # add quick JSON ending check, so doesn't have to fully parse
@@ -277,6 +341,41 @@ Answer: {{ "fn_name" : \""""
         return return_obj
 
     def prompt_selection(self, custom_prompt: str) -> object:
+        # 1. Get the base IDs (System + User + Post)
+        # Ensure this returns a FLAT LIST of ints, not a Tensor yet.
+        ids = self.get_system_prompt_ids(custom_prompt) 
+        
+        # 2. Pre-fill the start of the JSON so the LLM doesn't have to "guess" it
+        prefill_text = '{"fn_name": "'
+        ids.extend(self.encode(prefill_text))
+        
+        # Initialize your result accumulator with the prefilled text
+        json_result = [prefill_text]
+
+        for i in range(self._max_tokens_limit):
+            # This is the slow part (The Model Math)
+            out_tokens = self._llm.get_logits_from_input_ids(ids)
+            next_token_id = self.argmax(out_tokens)
+            
+            # Update IDs so the model remembers this token for the next round
+            ids.append(next_token_id)
+            
+            # Decode only the NEW token
+            new_text = self.decode([next_token_id])
+            json_result.append(new_text)
+
+            # 3. Quick exit check
+            if "}" in new_text:
+                # Only now do the expensive JSON validation/cleanup
+                if self._push_json_chunk(json_result, ""): # Simplified check
+                    return self._cleanup_json(json_result, custom_prompt)
+
+            if next_token_id == self.EOT_TOKEN_ID:
+                break
+
+        return self._cleanup_json(json_result, custom_prompt)
+
+    def __prompt_selection(self, custom_prompt: str) -> object:
         """
         Select the best suit functions , arguments from the given prompt,
         returns as a proper object
@@ -288,12 +387,11 @@ Answer: {{ "fn_name" : \""""
             object: JSON comapatible Dict which will contains prompt, fn_name
                   and args
         """
-        system_prompt = self.get_custom_prompt_str(custom_prompt)
-        torch_tensors = self.encode(system_prompt)
-        # TODO, should replace above 2 lines
-        # torch_tensors = self.get_system_prompt_tensor(custom_prompt)
+
+        torch_tensors = self.get_system_prompt_tensor(custom_prompt)
 
         ids = torch_tensors[0].tolist()
+        decoded = self._llm._decode(ids)
 
         json_result = ["{", '"fn_name"', ": \""]
         if self._llm is None:
@@ -303,8 +401,7 @@ Answer: {{ "fn_name" : \""""
             out_tokens = self._llm.get_logits_from_input_ids(ids)
             next_token_id = CallMeMaybe_LLM_Model.argmax(out_tokens)
             decoded = self.decode([next_token_id])
-
-            print(f"{next_token_id:<10}", end='')
+            # print(f"{next_token_id:<10} {decoded}", end='')
 
             if self._push_json_chunk(json_result, decoded):
                 obj = self._cleanup_json(json_result, custom_prompt)

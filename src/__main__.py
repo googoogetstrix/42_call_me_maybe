@@ -1,13 +1,19 @@
 from .cmm_llm import CallMeMaybe_LLM_Model
 import json
 import argparse
+import sys
 from pathlib import Path
+from datetime import datetime
 
 
 def main() -> None:
     """
     Run the Call Me Maybe project with the default options
     """
+
+    now = datetime.now()
+    timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+    print(f"{timestamp} INFO: Starts Execution",file=sys.stderr)
 
     try:
         parser = argparse.ArgumentParser(
@@ -41,14 +47,18 @@ def main() -> None:
         for k in prompts:
             out = model.prompt_selection(k['prompt'])
             items.append(out)
-            print(out)
+            print(out, file=sys.stderr)
         with open(output_path, "w") as f:
-            print(items)
+            # print(items, file=sys.stderr)
             json.dump(items, f, indent=4, ensure_ascii=False)
 
     except Exception as e:
         print("Error:", e)
         raise e
+    finally:
+        now = datetime.now()
+        timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+        print(f"{timestamp} INFO: Ends Execution", file=sys.stderr)
 
 
 if __name__ == "__main__":
