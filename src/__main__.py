@@ -58,7 +58,7 @@ def main() -> None:
                 
                 items.append(out)
                 print(out, file=sys.stderr)
-                print(f"Prompt {k}: {elapsed:.3f}s", file=sys.stderrs)
+                print(f"Prompt {k}: {elapsed:.3f}s", file=sys.stderr)
             json.dump(items, f, indent=4, ensure_ascii=False)
         now = datetime.now()
         timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
