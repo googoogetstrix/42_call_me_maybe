@@ -9,6 +9,7 @@ wheels/
 # Virtual environments
 .venv
 ./output
+./data/output
 .env
 .vscode
 ./data/input/_*.json

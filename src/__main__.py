@@ -7,6 +7,9 @@ from datetime import datetime
 import time
 
 
+def TEST_main() -> None:
+    pass
+
 def main() -> None:
     """
     Run the Call Me Maybe project with the default options
@@ -56,7 +59,7 @@ def main() -> None:
                 start = time.perf_counter()
                 out = model.prompt_selection(k['prompt'])
                 elapsed = time.perf_counter() - start
-                
+
                 items.append(out)
                 print(out, file=sys.stderr)
                 print(f"Prompt {k}: {elapsed:.3f}s", file=sys.stderr)
@@ -66,7 +69,7 @@ def main() -> None:
         print(f"{timestamp} INFO: Ends Execution", file=sys.stderr)
 
     except Exception as e:
-        print("Error:", e)
+        print(e)
         raise e
 
 

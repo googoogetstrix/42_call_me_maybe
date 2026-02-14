@@ -20,6 +20,7 @@ class CallMeMaybe_LLM_Model(BaseModel):
     _token_to_id: Dict[str, int] = PrivateAttr({})
     _id_to_token: Dict[int, str] = PrivateAttr({})
     _function_definitions: Optional[str] = None
+    _function_def_json: Optional[dict[str, Any]] = None
     _system_prompt: Optional[Dict[str, str]] = None
     _system_prompt_tokens: Dict[str, list[int]] = {}
     _system_prompt_tensor: Optional[torch.Tensor] = None
@@ -139,6 +140,7 @@ class CallMeMaybe_LLM_Model(BaseModel):
 
         try:
             fds = json.loads(json_str)
+            temp = []
         except json.JSONDecodeError:
             raise ValueError("invalid JSON str")
         if not isinstance(fds, list):
@@ -148,8 +150,14 @@ class CallMeMaybe_LLM_Model(BaseModel):
                 raise KeyError('object does not have "fn_name" attribute')
             if "args_names" not in fd:
                 raise KeyError('object does not have "args_names" attribute')
+            obj = {
+                'fn_name': fd['fn_name'],
+                'args_names': fd['args_names']
+            }
+            temp.append(obj)
 
-        self._function_definitions = json_str
+        self._function_def_json = fds
+        self._function_definitions = json.dumps(temp)
 
         sp = f"""
 You are helpful JSON generator, you will response only a valid JSON,
@@ -191,19 +199,29 @@ Question: """
                     self._system_prompt_tokens['POST_PROMPT'] 
                 )
 
-    def _push_json_chunk(self, src: list[str], chunk: str) -> bool:
-        chunk = chunk.replace('Ċ', '\n')
-        src.append(chunk)
-        temp = ''.join(src)
+    # def _push_json_chunk(self, src: list[str], chunk: str) -> bool:
+    #     chunk = chunk.replace('Ċ', '\n')        
+    #     temp = ''.join(src)
 
-        try:
-            # add quick JSON ending check, so doesn't have to fully parse
-            if "}" not in chunk:
-                return False
-            json.loads(temp)
-        except json.JSONDecodeError:
-            return False
-        return True
+    #     try:
+    #         # add quick JSON ending check, so doesn't have to fully parse
+    #         if "}" not in chunk:
+    #             src.append(chunk)
+    #             return False
+    #         else:
+    #             print(" CONTAINS! { ")
+    #             for c in chunk:
+    #                 print(f" now checking _{c}_")
+    #                 src.append(c)
+    #                 temp = ''.join(src)
+    #                 try:
+    #                     json.loads(temp)
+    #                     return True
+    #                 except json.JSONDecodeError:
+    #                     continue
+    #     except json.JSONDecodeError:
+    #         return False
+    #     return True
 
     def _cleanup_json(
             self,
@@ -223,26 +241,44 @@ Question: """
         Returns:
             object with pre-defined formatted
         """
+        # print(f"RAW: {src}\n\n")
+        # print(f"FD_JSON: {src}\n\n")
         try:
             obj = json.loads(src)
+            fn_name = obj['fn_name']
+
+            return_obj = {}
+            return_obj['prompt'] = prompt
+            for valid_prop in ["fn_name", "args"]:
+                try:
+                    if obj[valid_prop]:
+                        return_obj[valid_prop] = obj[valid_prop]
+                except KeyError:
+                    continue
+            # find the exact used function from the list base JSON
+            fnx = next(fn for fn in self._function_def_json if fn['fn_name'] == fn_name)
+
+            # type conversion
+            for k, v in fnx['args_types'].items():
+                if v == "float":
+                    return_obj['args'][k] = float(return_obj['args'][k])
+                elif v == "int":
+                    return_obj['args'][k] = int(return_obj['args'][k])
+                elif v == "str":
+                    return_obj['args'][k] = str(return_obj['args'][k])
+                elif v == "bool":
+                    return_obj['args'][k] = bool(return_obj['args'][k])
+
+            if reset_as_well:
+                src = []
         except Exception as e:
-            print(f"ERROR JSON: src= {src}")
+            print(f"ERROR JSON: src = {src}", file=sys.stderr)
+            print(f"ERROR return_obj: src = {return_obj}", file=sys.stderr)
             raise e
-        return_obj = {}
-        return_obj['prompt'] = prompt
-        for valid_prop in ["fn_name", "args"]:
-            try:
-                if obj[valid_prop]:
-                    return_obj[valid_prop] = obj[valid_prop]
-            except KeyError:
-                continue
-        if reset_as_well:
-            src = []
+        
         return return_obj
 
     def prompt_selection(self, custom_prompt: str) -> object:
-        
-        
         ids = self.get_system_prompt_ids(custom_prompt)
 
         prefill_text = '{"fn_name": "'
@@ -250,7 +286,7 @@ Question: """
 
         json_result = prefill_text
 
-        for i in range(self._max_tokens_limit):
+        for _ in range(self._max_tokens_limit):
 
             out_tokens = self._llm.get_logits_from_input_ids(ids)
             next_token_id = self.argmax(out_tokens)
@@ -261,19 +297,22 @@ Question: """
                 print(f"{next_token_id:<10} {new_text:<15}",
                       end='\t',
                       file=sys.stderr)
-
-            json_result += new_text
+            # json_result += new_text
+            # if self.DEBUG_OUTPUT:
+            #     print(''.join(json_result), file=sys.stderr)
             if self.DEBUG_OUTPUT:
-                print(''.join(json_result), file=sys.stderr)
-
+                print(''.join(json_result + new_text), file=sys.stderr)
             # 3. Quick exit check
             if "}" in new_text:
-
-                try:
-                    json.loads(json_result)
-                    return self._cleanup_json(json_result, custom_prompt)
-                except json.JSONDecodeError:
-                    pass
+                for c in new_text:
+                    json_result += c
+                    try:
+                        json.loads(json_result)
+                        return self._cleanup_json(json_result, custom_prompt)
+                    except json.JSONDecodeError:
+                        pass
+            else:
+                json_result += new_text
             if next_token_id == self.EOT_TOKEN_ID:
                 break
 

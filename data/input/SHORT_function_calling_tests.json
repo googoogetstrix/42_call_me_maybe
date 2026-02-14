@@ -3,9 +3,12 @@
     "prompt": "What is the product of 3 and 5?"
   },
   {
-    "prompt": "Greet shrek"
+    "prompt": "What is the sum of 265 and 345?"
   },
   {
-    "prompt": "Greet john"
+    "prompt": "What is the product of 3 and 5?"
+  },
+  {
+    "prompt": "What is the product of 12 and 4?"
   }
 ]
