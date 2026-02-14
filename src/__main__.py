@@ -7,9 +7,6 @@ from datetime import datetime
 import time
 
 
-def TEST_main() -> None:
-    pass
-
 def main() -> None:
     """
     Run the Call Me Maybe project with the default options
@@ -19,7 +16,7 @@ def main() -> None:
     start = time.perf_counter()
 
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
-    print(f"{timestamp} INFO: Starts Execution",file=sys.stderr)
+    print(f"{timestamp} INFO: Starts Execution", file=sys.stderr)
 
     try:
         parser = argparse.ArgumentParser(
@@ -70,7 +67,6 @@ def main() -> None:
 
     except Exception as e:
         print(e)
-        raise e
 
 
 if __name__ == "__main__":

@@ -20,7 +20,7 @@ class CallMeMaybe_LLM_Model(BaseModel):
     _token_to_id: Dict[str, int] = PrivateAttr({})
     _id_to_token: Dict[int, str] = PrivateAttr({})
     _function_definitions: Optional[str] = None
-    _function_def_json: Optional[dict[str, Any]] = None
+    _function_def_json: Optional[list[Any]] = None
     _system_prompt: Optional[Dict[str, str]] = None
     _system_prompt_tokens: Dict[str, list[int]] = {}
     _system_prompt_tensor: Optional[torch.Tensor] = None
@@ -67,7 +67,7 @@ class CallMeMaybe_LLM_Model(BaseModel):
             self._token_to_id[processed_token] = token_id
             self._id_to_token[token_id] = processed_token
 
-    def encode(self, text: str) -> torch.Tensor:
+    def encode(self, text: str) -> list[int]:
         """
         Encode the input text using internal vocab into Tensor.
 
@@ -77,7 +77,7 @@ class CallMeMaybe_LLM_Model(BaseModel):
             text (str): string to encode.
 
         Returns:
-            torch.Tensor: Tensor of the mappings.
+            list[int]: list of the ids mapping
 
         """
         # convert the text into list of single character token
@@ -189,46 +189,24 @@ Question: """
         Returns:
             torch.Tensor: tensor cretaed from system + custom prompt
         """
-        # print(f"SYSTEM PROMPT: {self._system_prompt['PRE_PROMPT']} {custom_prompt} {self._system_prompt['POST_PROMPT']}\n\n")
+        # print(f"SYSTEM PROMPT: {self._system_prompt['PRE_PROMPT']}")
+        # print(f"{custom_prompt} {self._system_prompt['POST_PROMPT']}\n\n")
         # if previously set, simply return the whole base prompt
         user_prompt = self.encode(custom_prompt)
 
         return (
                     self._system_prompt_tokens['PRE_PROMPT'] +
                     user_prompt +
-                    self._system_prompt_tokens['POST_PROMPT'] 
+                    self._system_prompt_tokens['POST_PROMPT']
                 )
-
-    # def _push_json_chunk(self, src: list[str], chunk: str) -> bool:
-    #     chunk = chunk.replace('Ċ', '\n')        
-    #     temp = ''.join(src)
-
-    #     try:
-    #         # add quick JSON ending check, so doesn't have to fully parse
-    #         if "}" not in chunk:
-    #             src.append(chunk)
-    #             return False
-    #         else:
-    #             print(" CONTAINS! { ")
-    #             for c in chunk:
-    #                 print(f" now checking _{c}_")
-    #                 src.append(c)
-    #                 temp = ''.join(src)
-    #                 try:
-    #                     json.loads(temp)
-    #                     return True
-    #                 except json.JSONDecodeError:
-    #                     continue
-    #     except json.JSONDecodeError:
-    #         return False
-    #     return True
 
     def _cleanup_json(
             self,
-            src: list[str],
+            # src: list[str],
+            src: str,
             prompt: str,
             reset_as_well: bool = True
-            ) -> object:
+            ) -> Dict[str, Any]:
         """
         Adjust the obejct so the output JSON is in "prompt", "fn_name", "args"
         format
@@ -244,6 +222,7 @@ Question: """
         # print(f"RAW: {src}\n\n")
         # print(f"FD_JSON: {src}\n\n")
         try:
+            # obj = json.loads(src)
             obj = json.loads(src)
             fn_name = obj['fn_name']
 
@@ -256,29 +235,47 @@ Question: """
                 except KeyError:
                     continue
             # find the exact used function from the list base JSON
-            fnx = next(fn for fn in self._function_def_json if fn['fn_name'] == fn_name)
+            if self._function_def_json is None:
+                raise ValueError(f"key fn_name not found {fn_name}")
+            lc = (
+                fn for fn in self._function_def_json
+                if fn['fn_name'] == fn_name
+            )
+            if lc is None:
+                raise ValueError(f"key fn_name not found {fn_name}")
+            fnx = next(lc)
 
             # type conversion
-            for k, v in fnx['args_types'].items():
-                if v == "float":
-                    return_obj['args'][k] = float(return_obj['args'][k])
-                elif v == "int":
-                    return_obj['args'][k] = int(return_obj['args'][k])
-                elif v == "str":
-                    return_obj['args'][k] = str(return_obj['args'][k])
-                elif v == "bool":
-                    return_obj['args'][k] = bool(return_obj['args'][k])
+            args_data = return_obj.get('args')
+
+            if isinstance(args_data, dict):
+                for k, v in fnx['args_types'].items():
+                    try:
+                        if v == "float":
+                            return_obj['args'][k] = (
+                                float(return_obj['args'][k])
+                            )
+                        elif v == "int":
+                            return_obj['args'][k] = int(return_obj['args'][k])
+                        elif v == "str":
+                            return_obj['args'][k] = str(return_obj['args'][k])
+                        elif v == "bool":
+                            return_obj['args'][k] = bool(return_obj['args'][k])
+                    except (ValueError, TypeError):
+                        continue
 
             if reset_as_well:
-                src = []
+                src = ""
         except Exception as e:
             print(f"ERROR JSON: src = {src}", file=sys.stderr)
             print(f"ERROR return_obj: src = {return_obj}", file=sys.stderr)
             raise e
-        
         return return_obj
 
     def prompt_selection(self, custom_prompt: str) -> object:
+
+        if self._llm is None:
+            raise ValueError("LLM is not initialised")
         ids = self.get_system_prompt_ids(custom_prompt)
 
         prefill_text = '{"fn_name": "'
