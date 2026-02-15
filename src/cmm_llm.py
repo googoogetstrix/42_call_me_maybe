@@ -1,7 +1,7 @@
 from llm_sdk import Small_LLM_Model
-from pydantic import BaseModel, PrivateAttr
-from typing import Dict, Optional, Any
-import torch
+from pydantic import BaseModel, PrivateAttr, Field
+from typing import Any
+
 import json
 import numpy as np
 import sys
@@ -14,16 +14,16 @@ class CallMeMaybe_LLM_Model(BaseModel):
     """Wrapper class of Small_LLM_Model, make use of the existing LLM class
     and implement own decode/encode method"""
 
-    _llm: Optional[Small_LLM_Model] = PrivateAttr(None)
-    _vocab: Optional[str] = PrivateAttr(None)
+    _llm: Small_LLM_Model | None = PrivateAttr(None)
+    _vocab: str | None = PrivateAttr(None)
     _max_tokens_limit: int = 256
-    _token_to_id: Dict[str, int] = PrivateAttr({})
-    _id_to_token: Dict[int, str] = PrivateAttr({})
-    _function_definitions: Optional[str] = None
-    _function_def_json: Optional[list[Any]] = None
-    _system_prompt: Optional[Dict[str, str]] = None
-    _system_prompt_tokens: Dict[str, list[int]] = {}
-    _system_prompt_tensor: Optional[torch.Tensor] = None
+    _token_to_id: dict[str, int] = PrivateAttr({})
+    _id_to_token: dict[int, str] = PrivateAttr({})
+    _function_definitions: str | None
+    _function_def_json: list[Any] | None
+    _system_prompt: dict[str, Any] | None = None
+    _system_prompt_tokens: dict[str, list[int]] = Field(default_factory=dict)
+    # _system_prompt_tensor: Optional[torch.Tensor] = None
     EOT_TOKEN_ID: int = 151643
     DEBUG_OUTPUT: bool = False
 
@@ -69,7 +69,7 @@ class CallMeMaybe_LLM_Model(BaseModel):
 
     def encode(self, text: str) -> list[int]:
         """
-        Encode the input text using internal vocab into Tensor.
+        Encode the input text using internal vocab into list[int].
 
         Equivalent of llm.tokenizer.encode().
 
@@ -213,11 +213,10 @@ Question: """
 
     def _cleanup_json(
             self,
-            # src: list[str],
             src: str,
             prompt: str,
             reset_as_well: bool = True
-            ) -> Dict[str, Any]:
+            ) -> dict[str, Any]:
         """
         Adjust the obejct so the output JSON is in "prompt", "fn_name", "args"
         format
@@ -228,7 +227,7 @@ Question: """
             reset_as_well (bool): cleaned up the src list once done
 
         Returns:
-            object with pre-defined formatted
+            dict[str, Any]: python "JSON" dict
         """
         # print(f"RAW: {src}\n\n")
         # print(f"FD_JSON: {src}\n\n")
@@ -283,7 +282,7 @@ Question: """
             raise e
         return return_obj
 
-    def prompt_selection(self, custom_prompt: str) -> Dict[str, Any]:
+    def prompt_selection(self, custom_prompt: str) ->dict[str, Any]:
         """
         get the JSON object in the format
         { "fn_name" : "XXX" , args: { "a": "aaa" , "b": "bbb" }}
@@ -292,7 +291,7 @@ Question: """
         Args:
             custom_prompt (str): prompt for the selection
         Returns:
-            Dict[str, Any]: the JSON "object"
+            dict[str, Any]: the JSON "object"
         """
         if custom_prompt is None or custom_prompt.strip() == "":
             raise ValueError("prompt cannot be empty")

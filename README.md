@@ -12,10 +12,18 @@ uv run python -m src --input data/input/SHORT_function_calling_tests.json --outp
 
 TODOs
 
-- Prompt Caching, (only pre part! AKA KV Cache)
+- Prompt Caching    [DONE?]
 - check about the output folders
-- quick returns if the chunk recently hasn't contains }, simply return False *** DONE ***s
+- quick returns if the chunk recently hasn't contains }, simply return False [DONE]
 
+- cleanup old Python < 3.10 codes
+- the ToolSelection model which generated from dunction definition, make sure the output always valid
+- pytest testunit, handling the total BS prompts
+- readme
+
+ Time Limit Solutions
+- precached the system prompt tokens, only do the custom_prompt on each loop
+- Shaved the JSON functions definition, try remove the args_types, which couldn't be trusted from LLM and have to enforce manually
 
 
 # Description
@@ -109,7 +117,3 @@ BPE (Byte Pairing Encoding) helps by trying to make the most "nice" pairs, inste
 
 
 
- Time Limit Solutions
-
- Shaved the JSON functions definition, try remove the args_types, which couldn't be trusted from LLM and have to enforce manually
- 
