@@ -20,11 +20,12 @@ run-timed:
 	@echo "Execution finished at: $$(date)"
 
 # Run the main script in debug mode using pdb
+# # $(UV) run $(PYTHON) -m pdb $(MAIN_SCRIPT)
 debug:
-	$(UV) run $(PYTHON) -m pdb $(MAIN_SCRIPT)
+	$(UV) run $(PYTHON) -m pdb src
 
 test:
-	$(UV) run pytest
+	$(UV) run pytest --pdb
 
 # Remove temporary files and caches
 clean:

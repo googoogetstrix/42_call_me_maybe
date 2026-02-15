@@ -106,3 +106,10 @@ BPE (Byte Pairing Encoding) helps by trying to make the most "nice" pairs, inste
  Generative AI Helps
  The explanation about the BPE
  Makefile creation and exclude option for flake8, mypy
+
+
+
+ Time Limit Solutions
+
+ Shaved the JSON functions definition, try remove the args_types, which couldn't be trusted from LLM and have to enforce manually
+ 

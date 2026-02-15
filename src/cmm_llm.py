@@ -150,6 +150,9 @@ class CallMeMaybe_LLM_Model(BaseModel):
                 raise KeyError('object does not have "fn_name" attribute')
             if "args_names" not in fd:
                 raise KeyError('object does not have "args_names" attribute')
+            if "args_types" not in fd:
+                raise KeyError('object does not have "args_types" attribute')
+            
             obj = {
                 'fn_name': fd['fn_name'],
                 'args_names': fd['args_names']
@@ -188,10 +191,18 @@ Question: """
             custom_prompt (str): prompt for looking up functions
         Returns:
             torch.Tensor: tensor cretaed from system + custom prompt
+        Raises:
+            AttribueError: when function was called without setting functions
+            definition
         """
         # print(f"SYSTEM PROMPT: {self._system_prompt['PRE_PROMPT']}")
         # print(f"{custom_prompt} {self._system_prompt['POST_PROMPT']}\n\n")
         # if previously set, simply return the whole base prompt
+        try:
+            if self._system_prompt_tokens['PRE_PROMPT'] is None:
+                pass
+        except KeyError:
+            raise AttributeError("functions definition was not set")
         user_prompt = self.encode(custom_prompt)
 
         return (
@@ -267,12 +278,24 @@ Question: """
             if reset_as_well:
                 src = ""
         except Exception as e:
-            print(f"ERROR JSON: src = {src}", file=sys.stderr)
+            print(f"ERROR JSON: src = {src}", file=sys.stsderr)
             print(f"ERROR return_obj: src = {return_obj}", file=sys.stderr)
             raise e
         return return_obj
 
-    def prompt_selection(self, custom_prompt: str) -> object:
+    def prompt_selection(self, custom_prompt: str) -> Dict[str, Any]:
+        """
+        get the JSON object in the format
+        { "fn_name" : "XXX" , args: { "a": "aaa" , "b": "bbb" }}
+        for the selected prompt
+
+        Args:
+            custom_prompt (str): prompt for the selection
+        Returns:
+            Dict[str, Any]: the JSON "object"
+        """
+        if custom_prompt is None or custom_prompt.strip() == "":
+            raise ValueError("prompt cannot be empty")
 
         if self._llm is None:
             raise ValueError("LLM is not initialised")
