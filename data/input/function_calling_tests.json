@@ -1,44 +1,29 @@
 [
   {
-    "prompt": "What is the square root of 16?"
+    "prompt": "what is the result of 10 divided by 4?"
   },
   {
-    "prompt": "Reverse the string 'hello'"
+    "prompt": "Replace woman in this list with GIRL: Angela, Thomas, Lucy, Martha, Johnson"
   },
   {
-    "prompt": "Reverse the string 'world'"
+    "prompt": "Rewrite the phone number 0800909111 in format XXX-XXX-XXXX, "
   },
   {
-    "prompt": "Substitute the digits in the string 'Hello 34 I'm 233 years old' with 'NUMBERS'"
+    "prompt": "Greet Alexander the Great & Cleopatra"
   },
   {
-    "prompt": "Replace all vowels in 'Programming is fun' with asterisks"
+    "prompt": "What is the result 10 to the power of 2"
   },
   {
-    "prompt": "Substitute the word 'cat' with 'dog' in 'The cat sat on the mat with another cat'"
+    "prompt": "What is 3 squared?"
   },
   {
-    "prompt": "What is the sum of 2 and 3?"
+    "prompt": "What is the the result of 7 + 5 + 5?"
   },
   {
-    "prompt": "What is the sum of 265 and 345?"
+    "prompt": "what is the result of five times three?"
   },
   {
-    "prompt": "Is 4 an even number?"
-  },
-  {
-    "prompt": "Is 7 an even number?"
-  },
-  {
-    "prompt": "What is the product of 3 and 5?"
-  },
-  {
-    "prompt": "What is the product of 12 and 4?"
-  },
-  {
-    "prompt": "Greet shrek"
-  },
-  {
-    "prompt": "Greet john"
+    "prompt": "How old is the world oldest dog?"
   }
 ]

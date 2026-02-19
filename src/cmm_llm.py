@@ -1,6 +1,6 @@
 from llm_sdk import Small_LLM_Model
-from pydantic import BaseModel, PrivateAttr, Field
-from typing import Any
+from pydantic import BaseModel, PrivateAttr
+from typing import Any, TypedDict, Annotated
 
 import json
 import numpy as np
@@ -10,9 +10,125 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+class LLMResponseFunctionSchema(TypedDict):
+    fn_name: str
+    args: dict[str, Any]
+
+
+class FunctionSchema(TypedDict):
+    fn_name: str
+    args_types: dict[str, Any]
+    args_names: list[Any]
+    return_type: str
+
+
+FunctionsRepoType = Annotated[
+    list[FunctionSchema],
+    "The available functions can be selected"
+]
+
+
+class ToolSelection(BaseModel):
+    """
+    DTO(Data Transfer Object) class as a map between input functions definition
+    and the expected output JSON
+    """
+    prompt: str
+    fn_name: str
+    args: dict[str, Any]
+    args_types: dict[str, Any]
+    args_names: list[Any]
+    is_complete: bool = False
+
+    def export(self, mode: str = "str") -> str | dict[str, Any]:
+        """
+        Returns ready to use formatted JSON on this item
+
+        Returns:
+            str of the python "JSON" dict in the subject specification format
+        Raises:
+            AttributeError: if any of the attributes weren't previously set
+        """
+        if self.fn_name is None:
+            raise AttributeError("the fn_name attribute was not set")
+        if self.args is None:
+            raise AttributeError("the args attribute was not set")
+        if self.prompt is None:
+            raise AttributeError("the prompt attribute was not set")
+        out = {
+            "prompt": self.prompt,
+            "fn_name": self.fn_name,
+            "args": self.args
+        }
+
+        return json.dumps(out) if mode == "str" else out
+
+    @classmethod
+    def create_safe_instance(
+        cls,
+        custom_prompt: str,
+        llm_response: dict[str, Any],
+        repo: list[FunctionsRepoType]
+    ) -> "ToolSelection":
+        try:
+
+            repo[0]
+
+            fx_ptr = [
+                f for f in repo if f['fn_name'] == llm_response['fn_name']
+                ]
+            matched_fx = fx_ptr[0]
+            cls.is_complete = True
+
+        except IndexError:
+            matched_fx = repo[0]
+        except Exception as e:
+            raise e
+
+        # make arguments list in preferred types
+        temp_args = {}
+        cls.args = {}
+        for arg, arg_type in matched_fx['args_types'].items():
+            # set whatever returned from llm_responses to cls.args
+            try:
+                cls.args[arg] = llm_response['args'][arg]
+            except AttributeError:
+                cls.args[arg] = 0
+
+            if arg_type == 'float':
+                try:
+                    temp_args[arg] = float(cls.args[arg])
+                except KeyError:
+                    temp_args[arg] = 0.0
+            elif arg_type == 'int':
+                try:
+                    temp_args[arg] = int(cls.args[arg])
+                except KeyError:
+                    temp_args[arg] = 0
+            elif arg_type == 'str':
+                try:
+                    temp_args[arg] = str(cls.args[arg])
+                except KeyError:
+                    temp_args[arg] = ""
+            else:
+                raise ValueError(f"unknown datatype {arg_type}")
+
+        instance = cls(
+            prompt=custom_prompt,
+            fn_name=matched_fx['fn_name'],
+            args=temp_args,
+            args_types=matched_fx['args_types'],
+            args_names=matched_fx['args_names']
+        )
+
+        return instance
+
+
 class CallMeMaybe_LLM_Model(BaseModel):
-    """Wrapper class of Small_LLM_Model, make use of the existing LLM class
-    and implement own decode/encode method"""
+    """
+    Wrapper class of Small_LLM_Model, make use of the existing LLM class
+    and implement own decode/encode method
+    """
 
     _llm: Small_LLM_Model | None = PrivateAttr(None)
     _vocab: str | None = PrivateAttr(None)
@@ -22,7 +138,9 @@ class CallMeMaybe_LLM_Model(BaseModel):
     _function_definitions: str | None
     _function_def_json: list[Any] | None
     _system_prompt: dict[str, Any] | None = None
-    _system_prompt_tokens: dict[str, list[int]] = Field(default_factory=dict)
+    _system_prompt_tokens: dict[str, list[int]] = PrivateAttr(
+        default_factory=dict
+        )
     # _system_prompt_tensor: Optional[torch.Tensor] = None
     EOT_TOKEN_ID: int = 151643
     DEBUG_OUTPUT: bool = False
@@ -152,7 +270,6 @@ class CallMeMaybe_LLM_Model(BaseModel):
                 raise KeyError('object does not have "args_names" attribute')
             if "args_types" not in fd:
                 raise KeyError('object does not have "args_types" attribute')
-            
             obj = {
                 'fn_name': fd['fn_name'],
                 'args_names': fd['args_names']
@@ -277,12 +394,12 @@ Question: """
             if reset_as_well:
                 src = ""
         except Exception as e:
-            print(f"ERROR JSON: src = {src}", file=sys.stsderr)
+            print(f"ERROR JSON: src = {src}", file=sys.stderr)
             print(f"ERROR return_obj: src = {return_obj}", file=sys.stderr)
             raise e
         return return_obj
 
-    def prompt_selection(self, custom_prompt: str) ->dict[str, Any]:
+    def prompt_selection(self, custom_prompt: str) -> dict[str, Any]:
         """
         get the JSON object in the format
         { "fn_name" : "XXX" , args: { "a": "aaa" , "b": "bbb" }}
@@ -326,8 +443,16 @@ Question: """
                 for c in new_text:
                     json_result += c
                     try:
-                        json.loads(json_result)
-                        return self._cleanup_json(json_result, custom_prompt)
+                        llm_response = json.loads(json_result)
+                        # original line
+                        # return self._cleanup_json(json_result, custom_prompt)
+
+                        tool = ToolSelection.create_safe_instance(
+                            custom_prompt=custom_prompt,
+                            llm_response=llm_response,
+                            repo=self._function_def_json
+                        )
+                        return tool.export("json")
                     except json.JSONDecodeError:
                         pass
             else:
@@ -335,4 +460,9 @@ Question: """
             if next_token_id == self.EOT_TOKEN_ID:
                 break
 
-        return self._cleanup_json(json_result, custom_prompt)
+        tool = ToolSelection.create_safe_instance(
+                            custom_prompt=custom_prompt,
+                            llm_response=llm_response,
+                            repo=self._function_def_json
+                        )
+        return tool.export("json")

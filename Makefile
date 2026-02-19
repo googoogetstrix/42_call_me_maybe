@@ -22,7 +22,7 @@ run-timed:
 # Run the main script in debug mode using pdb
 # # $(UV) run $(PYTHON) -m pdb $(MAIN_SCRIPT)
 debug:
-	$(UV) run $(PYTHON) -m pdb src
+	$(UV) run $(PYTHON) -m pdb -m src
 
 test:
 	$(UV) run pytest --pdb
