@@ -1,30 +1,16 @@
-This project has been created as part of the 42 curriculum by bworrawa
+*This project has been created as part of the 42 curriculum by __REDACTED__*
 
 
-Instructions 
-evaluation process 
-    check directory structure
-    > tree    
+# Instructions 
 
-```
-uv run python -m src --input data/input/SHORT_function_calling_tests.json --output out.json
-```
-
-TODOs
-
-- Prompt Caching    [DONE?]
-- check about the output folders
-- quick returns if the chunk recently hasn't contains }, simply return False [DONE]
-
-- cleanup old Python < 3.10 codes
-- the ToolSelection model which generated from dunction definition, make sure the output always valid
-- pytest testunit, handling the total BS prompts
-- readme
-
- Time Limit Solutions
-- precached the system prompt tokens, only do the custom_prompt on each loop
-- Shaved the JSON functions definition, try remove the args_types, which couldn't be trusted from LLM and have to enforce manually
-
+## Requirements:
+ - Python3.1x , [uv](https://github.com/astral-sh/uv)
+ ```
+ > pip install --user pipx
+ > pipx install uv
+ ```
+ - A LOT of diskspace, around 7.5 GB
+ - Patience, you'll need lots of it
 
 # Description
 
@@ -53,10 +39,10 @@ I also tried to mess with the output logits, but there's no easy way to try pars
 
 The solution? Since the LLM is Autoregression and try to feed itself over and over again, i forced the beginning of the preferred JSON output into the "initial" prompt itself, so the prompt will end with:
 ```
-Blah Blah
+(The actual prompt ends here)
 Answer: { "fn_name: "
 ```
-this somehow forced the LLM that the part of the JSON response is already there, it has to complete it from the template. This solve half of the issue, if you're not stopping the LLM at the right time, it tends to give you extra garbage tokens.
+This somehow forced the LLM to recognized that the part of the JSON response is already there, it has to complete it from the template. This solve half of the issue, if you're not stopping the LLM at the right time, it tends to give you extra garbage tokens.
 
 The solution for the latter half, is to try to check if the JSON responses output from the LLM is already finished, i use the json.loads() to check if the appended string is valid JSON already, then break the loop and proceed to the cleaning up process.
 
@@ -65,29 +51,39 @@ JSON cleaning up, this will make sure that the output JSON is in correct order, 
 ## Resources:
 https://en.wikipedia.org/wiki/Large_language_model
 
-## Instructions
-
-## Resources
-# NOT YET DONE
-
 
 ## Algorithm explanation
-#### Algorithm explanation: Describe your constrained decoding approach in detail
 
+```
+Prompt -> Tokenization -> Input IDs -> LLM -> Logits -> Next Token Selection
+```
 
+As described in the subject, the plainer description is the process of LLM is repeatedly feeding the information (both prompts & answers) into the LLM until it stops. But there're lots of conversions need to be done during the process (tokens, logits)
+
+Now, let's look into what we have in the Small_LLM_Model, we have 2 public functions we can make use _*GODDAMNIT, THERE'S NEW VERSION OF SUBJECT WHICH IS A LOT OF EASIER*_
+- get_logits_from_input_ids()
+- get_path_to_vocab_file()
+
+So, you have to implement your own encode() and decode() using the LLM's dictionary file, the simple one may not work ..see [encoding](#encoding) 
+
+these 2 functions will allow you to turn string prompt into token list (back and forth), which you can feed into get_logits_from_input_ids() and start the autoregression process
+
+the output from get_logits_from_input_ids() will return the logits which you can make use of by find the highest value. 
+
+Then goe to the process which was mentioned in the [output format](#output-format)
 
 ## Design decisions
-#### Explain key choices in your implementation
+The Small_LLM_Model class was supposed to be left untouched. So the design pattern i chose is the Proxy (custom class encapsulate predefined class)  
+
 
 ## Performance analysis
-#### Discuss accuracy, speed, and reliability of your solution
+Since the execution time is the part of the evaluation.Putting effort to shave off every seconds contribute to the project. See [Execution times exceeding the expected time](#execution-times-exceeding-the-expected-time)
 
 
 ## Challenges faced
-(Document difficulties encountered and how you solved them)
 ### Encoding
 - Sherk issue with the BPE merge table
-The additional rule required for encoding, the issues with the common greedy algorithm shows on the prompt "greet shrek". By using simple greedy algorithm, the encoding found the best match for "shrek" token as ["shr" , "e", "k"], which make the invalid token in argument section ... technically, the LLM provide the merges.txt which explain how to properly merge the token, but since we cannot access the private attribute of the Small_LLM_Model, we need to use the alternatives
+The additional rule required for encoding.The issues with the common greedy algorithm shows on the prompt "greet shrek". By using simple greedy algorithm, the encoding found the best match for "shrek" token as ["shr" , "e", "k"], which make the invalid token in argument section ... technically, the LLM provide the merges.txt which explain how to properly merge the token, but since we cannot access the private attribute of the Small_LLM_Model, we need to use the alternatives
 
 for example, these tokens exist in the dictionary
 ```
@@ -99,21 +95,50 @@ by using simple greedy algorithm, the nearest macth should be ["shr", "e", "k"] 
 
 BPE (Byte Pairing Encoding) helps by trying to make the most "nice" pairs, instead of just the "longest" ... so no tokens should left as an orphan token, the result are the equally "strong" tokens instead of a "very strong" token along 2 weak tokens
 
+### Output format
+ - ANY valid prompts should be answered, no matter how BS they are, the function name, the arhuments & tehir types have to be valid and consist to functions definition input. So by default, if no function or not in the list is returned from LLM, use the first one from the defintion
+ - Extra step to force the output response by initializing the order of attributes as specified from the subject, make sure they have the correct type by casting them according to the definitions
+ - If the TinyLM is not picked the correct one from the BS prompt, let's hope it did their best and we'll just handle (and verfiy) the output JSON again
+
+
+### Execution times exceeding the expected time
+- most of the LLM related operations is quite painfully slow, so cache whatever you can, stop early if you can ... and hope you won;t spend too much time on handling the errors
+- In this script, the beginning (the PRE) of the system prompts and the sample JSON output format (the POST) are always the same, so why bother encode them again and again? just use the cached and using encode() to handle the actual prompt, that will shave you down a lot especially if you have extra detail system prompt
+- since we know that the output from the LLM should be in a valid JSON format and since we cannot force TinyML to blabber the output after that, we make sure by checking each returned token (from softmax logits) that if the content contains "}" , it could be the end of the output JSON .. you simply test by parsing the "JSON" section if it's actually done, then you can skip from the rest of the loop uintil the endoftext token
+
 
 ## Testing strategy
-#### Describe how you validated your implementation
+- starts with the file structures, handling the basic IOs
+- then handling the of the LLM, structure & validity of the input files
+- then test with the subject's prompts, try some borderline BS prompts just to make sure the script still give correct answers, the go fully BS , just to make sure that the formats are OK.. no weird function name or arguments & types were output
 
 ## Example usage:
-#### Provide clear examples of running your progr
 
- run
+ run 
  ```
  uv run python3 -m src
- ```
+ ``` 
+ for the basic (default) usage
 
- Generative AI Helps
- The explanation about the BPE
- Makefile creation and exclude option for flake8, mypy
+ optional runs:
+```
+uv run python -m src --input data/input/SHORT_function_calling_tests.json --output out.json
+```
+
+* note that the functions definition file are fixed in ```./data/input/functions_defintion.json```
 
 
+ ## Generative AI Helps
+- The explanation about the BPE.
+- Makefile creation and exclude option for flake8, mypy.
+- Explain about the mypy error messages & what exactly needs to fix.
 
+
+<!-- TODOs
+- Prompt Caching    [DONE?]
+- check about the output folders [DONE]
+- quick returns if the chunk recently hasn't contains }, simply return False [DONE]
+- cleanup old Python < 3.10 codes [DONE]
+- the ToolSelection model which generated from function definition, make sure the output always valid [DONE]
+- pytest testunit, handling the total BS prompts [DONE]
+- readme [DONE] -->
