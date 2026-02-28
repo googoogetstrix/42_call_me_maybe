@@ -1,72 +1,32 @@
 [
     {
-        "prompt": "what is the result of 10 divided by 4?",
-        "fn_name": "fn_add_numbers",
+        "prompt": "Do not add 5 and 10.",
+        "fn_name": "fn_is_even",
         "args": {
-            "a": 10.0,
-            "b": 4.0
+            "n": 5
         }
     },
     {
-        "prompt": "Replace woman in this list with GIRL: Angela, Thomas, Lucy, Martha, Johnson",
-        "fn_name": "fn_substitute_string_with_regex",
-        "args": {
-            "source_string": "woman",
-            "regex": "gir",
-            "replacement": "gir"
-        }
-    },
-    {
-        "prompt": "Rewrite the phone number 0800909111 in format XXX-XXX-XXXX, ",
-        "fn_name": "fn_reverse_string",
-        "args": {
-            "s": "0800909111"
-        }
-    },
-    {
-        "prompt": "Greet Alexander the Great & Cleopatra",
-        "fn_name": "fn_greet",
-        "args": {
-            "name": "Alexander the Great"
-        }
-    },
-    {
-        "prompt": "What is the result 10 to the power of 2",
-        "fn_name": "fn_add_numbers",
-        "args": {
-            "a": 10.0,
-            "b": 2.0
-        }
-    },
-    {
-        "prompt": "What is 3 squared?",
-        "fn_name": "fn_greet",
-        "args": {
-            "name": "3"
-        }
-    },
-    {
-        "prompt": "What is the the result of 7 + 5 + 5?",
-        "fn_name": "fn_add_numbers",
-        "args": {
-            "a": 7.0,
-            "b": 5.0
-        }
-    },
-    {
-        "prompt": "what is the result of five times three?",
+        "prompt": "Could you please multiply the word 'Apple' by 3?",
         "fn_name": "fn_multiply_numbers",
         "args": {
-            "a": 5.0,
+            "a": 0.0,
             "b": 3.0
         }
     },
     {
-        "prompt": "How old is the world oldest dog?",
+        "prompt": "Calculate the total of 50 and 20.",
         "fn_name": "fn_add_numbers",
         "args": {
-            "a": 100.0,
-            "b": 100.0
+            "a": 50.0,
+            "b": 20.0
+        }
+    },
+    {
+        "prompt": "Is the number 7 divisible by 2?",
+        "fn_name": "fn_is_even",
+        "args": {
+            "n": 7
         }
     }
 ]

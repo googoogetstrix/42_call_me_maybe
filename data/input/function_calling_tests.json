@@ -1,29 +1,14 @@
 [
   {
-    "prompt": "what is the result of 10 divided by 4?"
+    "prompt": "Do not add 5 and 10."
   },
   {
-    "prompt": "Replace woman in this list with GIRL: Angela, Thomas, Lucy, Martha, Johnson"
+    "prompt": "Could you please multiply the word 'Apple' by 3?"
   },
   {
-    "prompt": "Rewrite the phone number 0800909111 in format XXX-XXX-XXXX, "
+    "prompt": "Calculate the total of 50 and 20."
   },
   {
-    "prompt": "Greet Alexander the Great & Cleopatra"
-  },
-  {
-    "prompt": "What is the result 10 to the power of 2"
-  },
-  {
-    "prompt": "What is 3 squared?"
-  },
-  {
-    "prompt": "What is the the result of 7 + 5 + 5?"
-  },
-  {
-    "prompt": "what is the result of five times three?"
-  },
-  {
-    "prompt": "How old is the world oldest dog?"
+    "prompt": "Is the number 7 divisible by 2?"
   }
 ]

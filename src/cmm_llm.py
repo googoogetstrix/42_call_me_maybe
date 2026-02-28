@@ -1,6 +1,6 @@
 from llm_sdk import Small_LLM_Model
 from pydantic import BaseModel, PrivateAttr
-from typing import Any, TypedDict, Annotated
+from typing import Any, TypedDict, Annotated, cast
 
 import json
 import numpy as np
@@ -68,14 +68,18 @@ class ToolSelection(BaseModel):
         cls,
         custom_prompt: str,
         llm_response: dict[str, Any],
-        repo: list[FunctionsRepoType]
+        # repo: list[FunctionsRepoType]
+        repo: list[FunctionSchema]
     ) -> "ToolSelection":
         try:
 
-            repo[0]
+            # repo[0]
+            matched_fx: FunctionSchema = repo[0]
 
             fx_ptr = [
-                f for f in repo if f['fn_name'] == llm_response['fn_name']
+                f for f in repo
+                if cast(dict[str, Any], f)['fn_name']
+                == llm_response['fn_name']
                 ]
             matched_fx = fx_ptr[0]
             cls.is_complete = True
@@ -86,7 +90,7 @@ class ToolSelection(BaseModel):
             raise e
 
         # make arguments list in preferred types
-        temp_args = {}
+        temp_args: dict[str, str | int | float] = {}
         cls.args = {}
         for arg, arg_type in matched_fx['args_types'].items():
             # set whatever returned from llm_responses to cls.args
@@ -98,17 +102,17 @@ class ToolSelection(BaseModel):
             if arg_type == 'float':
                 try:
                     temp_args[arg] = float(cls.args[arg])
-                except KeyError:
+                except (KeyError, ValueError):
                     temp_args[arg] = 0.0
             elif arg_type == 'int':
                 try:
                     temp_args[arg] = int(cls.args[arg])
-                except KeyError:
+                except (KeyError, ValueError):
                     temp_args[arg] = 0
             elif arg_type == 'str':
                 try:
                     temp_args[arg] = str(cls.args[arg])
-                except KeyError:
+                except (KeyError, ValueError):
                     temp_args[arg] = ""
             else:
                 raise ValueError(f"unknown datatype {arg_type}")
@@ -135,8 +139,8 @@ class CallMeMaybe_LLM_Model(BaseModel):
     _max_tokens_limit: int = 256
     _token_to_id: dict[str, int] = PrivateAttr({})
     _id_to_token: dict[int, str] = PrivateAttr({})
-    _function_definitions: str | None
-    _function_def_json: list[Any] | None
+    _function_definitions: str | None = PrivateAttr(None)
+    _function_def_json: list[FunctionSchema] | None = PrivateAttr(None)
     _system_prompt: dict[str, Any] | None = None
     _system_prompt_tokens: dict[str, list[int]] = PrivateAttr(
         default_factory=dict
@@ -399,7 +403,7 @@ Question: """
             raise e
         return return_obj
 
-    def prompt_selection(self, custom_prompt: str) -> dict[str, Any]:
+    def prompt_selection(self, custom_prompt: str) -> str | dict[str, Any]:
         """
         get the JSON object in the format
         { "fn_name" : "XXX" , args: { "a": "aaa" , "b": "bbb" }}
@@ -415,6 +419,8 @@ Question: """
 
         if self._llm is None:
             raise ValueError("LLM is not initialised")
+        if self._function_def_json is None:
+            raise ValueError("Functions definition not initialised")
         ids = self.get_system_prompt_ids(custom_prompt)
 
         prefill_text = '{"fn_name": "'

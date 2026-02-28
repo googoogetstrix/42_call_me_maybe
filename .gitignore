@@ -13,3 +13,4 @@ wheels/
 .env
 .vscode
 ./data/input/_*.json
+./data/input/BS_*.json
